@@ -180,7 +180,7 @@ app.use('/graphql', graphqlHTTP({
                     await board.save();
                     break
                 }else {
-                    console.log('Nothing there.');
+                    console.log('Not possible.');
                 }
             }
 
