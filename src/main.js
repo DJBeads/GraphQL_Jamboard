@@ -3,7 +3,7 @@ const express = require('express')
 const {graphqlHTTP} = require ('express-graphql')
 const {buildSchema} = require('graphql')
 const User = require('./mongo/user');
-const Board = require('./mongo/boards');
+const Board = require('./mongo/board');
 
 const PORT = 3000
 
@@ -18,8 +18,7 @@ const schema = buildSchema(`
     input UserInput {       
         firstName: String       
         lastName: String       
-        emailAddress: String!       
-        password: String!     
+        emailAddress: String!        
     }    
       
     type User {        
@@ -49,23 +48,23 @@ const schema = buildSchema(`
         boardId:String,
         text:String,
         author:String,
-        x:Number,
-        y:Number,
+        x:String,
+        y:String,
        }
      type Post { 
         _id: String
         text:String,
         author:String,
-        x:Number,
-        y:Number,
+        x:String,
+        y:String,
         }
      input updatepostInput {
         boardId:String,
         postId:String,
         text:String,
         author:String,
-        x:Number,
-        y:Number,
+        x:String,
+        y:String,
        }   
      input deletepostInput { 
         boardId: String           
@@ -76,11 +75,18 @@ const schema = buildSchema(`
     }   
     input deleteBoardInput { 
         boardId: String           
-              
-    } 
-     type DeleteBoard {            
+    }  
+    type DeleteBoard {            
         boardId: String  
+    } 
+    input DeleteEditorInput {
+        boardId: String
+        editorId: String
     }
+    type DeleteEditor {
+        editorId: String 
+    }
+    
       
     type Query {     
         userById(id:String!): User     
@@ -89,10 +95,10 @@ const schema = buildSchema(`
     type Mutation {     
         createUser(user: UserInput): User   
         createBoard(board: BoardInput): Board 
-        deleteBoard(deleteboard: deleteBoardInput): DeleteBoard
+        deleteBoard(deleteBoard: deleteBoardInput): DeleteBoard
         
         addBoardEditor(editor: editorInput): Editor   
-        deleteBoardEditor(editor: editorInput): Editor 
+        deleteBoardEditor(deleteEditor: DeleteEditorInput): DeleteEditor 
         
         addBoardPost(post: postInput): Post
         updateBoardPost(post: updatepostInput): Post
@@ -135,12 +141,9 @@ app.use('/graphql', graphqlHTTP({
 
             await board.save();
         },
-        async deleteBoard({deleteboard}){
-            console.log(deleteboard)
-            Board.deleteOne({ _id: deleteboard.boardId}, function (err) {
-                if(err) console.log(err);
-                console.log("Successfully deleted.");
-            });
+        async deleteBoard({deleteBoard}){
+            const board = await Board.deleteOne({ _id: deleteBoard.boardId});
+            console.log(board);
         },
 
 
@@ -151,54 +154,23 @@ app.use('/graphql', graphqlHTTP({
             await board.save();
         },
         async updateBoardPost({post}){
-            console.log(post)
-            const board = await Board.findOne({_id: post.boardId});
-            const updatePost = post.postId;
-
-            console.log(board)
-            for(let i=0;i < board.post.length; i++){
-                if (updatePost==board.post[i]._id){
-
-                    board.post[i].overwrite(post);
-
-                    console.log(board);
-                    await board.save();
-                    break
-                }else {
-                    console.log('Not possible.');
-                }
-            }
-            await board.save();
+            const board = await Board.findOneAndUpdate(
+                {_id: post.boardId, "post._id" : post.postId},
+                {$set: {"post.$.text": post.text}});
         },
         async deleteBoardPost({deletePost}){
-            const board = await Board.findOne({_id: deletePost.boardId});
-            let post = deletePost.postId;
-
-            for(let i=0;i < board.post.length; i++){
-                if (post==board.post[i]._id){
-                    board.post.splice(i,1);
-                    await board.save();
-                    break
-                }else {
-                    console.log('Not possible.');
-                }
-            }
-
+            const board = await Board.updateOne(
+                {_id: deletePost.boardId},
+                {$pull: {post: {_id: deletePost.postId}}
+                });
         },
-        async deleteBoardEditor({editor}){
-            const board = await Board.findOne({_id: editor.boardId});
-            let editorId = editor.editor;
+        async deleteBoardEditor({deleteEditor}){
+            const board = await Board.updateOne(
+                {_id: deleteEditor.boardId},
+                {$pull: {editor: deleteEditor.editorId}}
+            );
+        },
 
-            for(let i=0;i < board.editor.length; i++){
-                if (editorId==board.editor[i]){
-                    board.editor.splice([i]);
-                    board.save();
-                    console.log(board.editor);
-                }else {
-                    console.log(board.editor[i]);
-                }
-            }
-        }
     },
     graphiql: true,
 }));
